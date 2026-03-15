@@ -15,33 +15,36 @@ export default function AdminDashboard() {
   useEffect(() => { fetchStats() }, [])
 
   async function fetchStats() {
-    // fetch all users with their subscriptions
-    // AFTER — catches NULL rows too
-const { data: allProfiles } = await supabase
-  .from('exporter_profiles')
-  .select('*, subscriptions(*)')
-  .order('created_at', { ascending: false })
+    const { data: allProfiles } = await supabase
+      .from('exporter_profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-// filter out admin accounts in JS
-const profiles = (allProfiles || []).filter(p => !p.is_admin)
+    const { data: allSubs } = await supabase
+      .from('subscriptions')
+      .select('*')
+
+    const profiles = (allProfiles || []).filter(p => !p.is_admin)
+
+    const withSubs = profiles.map(p => ({
+      ...p,
+      sub: (allSubs || []).find(s => s.user_id === p.user_id) || null
+    }))
 
     let trialActive = 0, trialExpired = 0, trialPending = 0
     let paid = 0, totalRevenue = 0
-
     const PLAN_PRICES = { monthly: 499, '6months': 2499, yearly: 3999 }
 
-    profiles.forEach(p => {
-      const sub = p.subscriptions?.[0]
-      const plan = sub?.plan || 'free'
-
+    withSubs.forEach(p => {
+      const plan = p.sub?.plan || 'free'
       if (plan !== 'free') {
         paid++
         totalRevenue += PLAN_PRICES[plan] || 0
       } else {
-        if (!sub?.trial_started_at) {
+        if (!p.sub?.trial_started_at) {
           trialPending++
         } else {
-          const started = new Date(sub.trial_started_at)
+          const started = new Date(p.sub.trial_started_at)
           const expiry = new Date(started.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
           const daysLeft = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24))
           if (daysLeft <= 0) trialExpired++
@@ -50,15 +53,8 @@ const profiles = (allProfiles || []).filter(p => !p.is_admin)
       }
     })
 
-    setStats({
-      total: profiles.length,
-      trialActive,
-      trialPending,
-      trialExpired,
-      paid,
-      totalRevenue,
-    })
-    setRecentUsers(profiles.slice(0, 5))
+    setStats({ total: withSubs.length, trialActive, trialPending, trialExpired, paid, totalRevenue })
+    setRecentUsers(withSubs.slice(0, 5))
     setLoading(false)
   }
 
@@ -67,18 +63,16 @@ const profiles = (allProfiles || []).filter(p => !p.is_admin)
     router.replace('/admin/login')
   }
 
-   if (loading || !stats) return (
-        <div style={{
-            minHeight: '100vh', background: '#0f172a',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(255,255,255,0.4)', fontSize: '14px',
-            fontFamily: "'DM Sans', sans-serif",
-        }}>
-            Loading admin dashboard...
-        </div>
-    )
-
- 
+  if (loading || !stats) return (
+    <div style={{
+      minHeight: '100vh', background: '#0f172a',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: 'rgba(255,255,255,0.4)', fontSize: '14px',
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      Loading admin dashboard...
+    </div>
+  )
 
   const cards = [
     { label: 'Total Users', value: stats.total, icon: '👥', color: '#C9A84C' },
@@ -249,8 +243,19 @@ const profiles = (allProfiles || []).filter(p => !p.is_admin)
                 </tr>
               </thead>
               <tbody>
-                {recentUsers.map(u => {
-                  const sub = u.subscriptions?.[0]
+                {recentUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{
+                      padding: '48px',
+                      textAlign: 'center',
+                      color: 'rgba(255,255,255,0.2)',
+                      fontSize: '13px',
+                    }}>
+                      No users yet
+                    </td>
+                  </tr>
+                ) : recentUsers.map(u => {
+                  const sub = u.sub
                   const plan = sub?.plan || 'free'
                   const trialStarted = sub?.trial_started_at
                   let statusLabel = 'Pending'

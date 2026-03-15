@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 const TRIAL_DAYS = 14
-const PLAN_PRICES = { monthly: 499, '6months': 2499, yearly: 3999 }
 const FILTERS = ['All', 'Pending', 'Trial Active', 'Trial Expired', 'Paid']
 
 export default function AdminUsers() {
@@ -17,58 +16,57 @@ export default function AdminUsers() {
   const [actionModal, setActionModal] = useState(null)
   const [toast, setToast] = useState('')
   const [saving, setSaving] = useState(false)
-
-  // action modal state
   const [newPlan, setNewPlan] = useState('free')
-  const [newExpiry, setNewExpiry] = useState('')
 
   useEffect(() => { fetchUsers() }, [])
 
   async function fetchUsers() {
     const { data: allProfiles } = await supabase
-        .from('exporter_profiles')
-        .select('*, subscriptions(*)')
-        .order('created_at', { ascending: false })
+      .from('exporter_profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    const data = (allProfiles || []).filter(p => !p.is_admin)
-    setUsers(data)
+    const { data: allSubs } = await supabase
+      .from('subscriptions')
+      .select('*')
+
+    const profiles = (allProfiles || []).filter(p => !p.is_admin)
+
+    const withSubs = profiles.map(p => ({
+      ...p,
+      sub: (allSubs || []).find(s => s.user_id === p.user_id) || null
+    }))
+
+    setUsers(withSubs)
     setLoading(false)
   }
 
   function getUserStatus(u) {
-    const sub = u.subscriptions?.[0]
-    const plan = sub?.plan || 'free'
-
+    const plan = u.sub?.plan || 'free'
     if (plan !== 'free') return { label: 'Paid', color: '#34d399', tag: 'Paid' }
-
-    if (!sub?.trial_started_at) return { label: 'Pending', color: '#a78bfa', tag: 'Pending' }
-
-    const started = new Date(sub.trial_started_at)
+    if (!u.sub?.trial_started_at) return { label: 'Pending', color: '#a78bfa', tag: 'Pending' }
+    const started = new Date(u.sub.trial_started_at)
     const expiry = new Date(started.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
     const daysLeft = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24))
-
     if (daysLeft <= 0) return { label: 'Expired', color: '#f87171', tag: 'Trial Expired' }
     return { label: `${daysLeft}d left`, color: '#60a5fa', tag: 'Trial Active' }
   }
 
   function getPlanExpiry(u) {
-    const sub = u.subscriptions?.[0]
-    if (!sub?.plan_started_at) return '—'
+    if (!u.sub?.plan_started_at) return '—'
     const durations = { monthly: 30, '6months': 180, yearly: 365 }
-    const days = durations[sub.plan] || 0
-    const expiry = new Date(new Date(sub.plan_started_at).getTime() + days * 24 * 60 * 60 * 1000)
+    const days = durations[u.sub.plan] || 0
+    const expiry = new Date(new Date(u.sub.plan_started_at).getTime() + days * 24 * 60 * 60 * 1000)
     return expiry.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  // ACTIVATE TRIAL
   async function activateTrial(u) {
     setSaving(true)
-    const sub = u.subscriptions?.[0]
-    if (sub) {
+    if (u.sub) {
       await supabase
         .from('subscriptions')
         .update({ trial_started_at: new Date().toISOString() })
-        .eq('id', sub.id)
+        .eq('id', u.sub.id)
     } else {
       await supabase.from('subscriptions').insert({
         user_id: u.user_id,
@@ -82,28 +80,28 @@ export default function AdminUsers() {
     fetchUsers()
   }
 
-  // SAVE PLAN CHANGE
   async function savePlanChange() {
     if (!actionModal) return
     setSaving(true)
-    const sub = actionModal.subscriptions?.[0]
-
     const updates = {
       plan: newPlan,
       status: 'active',
       plan_started_at: new Date().toISOString(),
     }
-
-    if (sub) {
-      await supabase.from('subscriptions').update(updates).eq('id', sub.id)
+    if (actionModal.sub) {
+      await supabase.from('subscriptions').update(updates).eq('id', actionModal.sub.id)
     } else {
       await supabase.from('subscriptions').insert({ user_id: actionModal.user_id, ...updates })
     }
-
     showToast(`✅ Plan updated to ${newPlan} for ${actionModal.business_name}`)
     setSaving(false)
     setActionModal(null)
     fetchUsers()
+  }
+
+  function openActionModal(u) {
+    setNewPlan(u.sub?.plan || 'free')
+    setActionModal(u)
   }
 
   function showToast(msg) {
@@ -111,13 +109,6 @@ export default function AdminUsers() {
     setTimeout(() => setToast(''), 3500)
   }
 
-  function openActionModal(u) {
-    const sub = u.subscriptions?.[0]
-    setNewPlan(sub?.plan || 'free')
-    setActionModal(u)
-  }
-
-  // FILTER + SEARCH
   const displayed = users.filter(u => {
     const status = getUserStatus(u)
     const matchesFilter = filter === 'All' || status.tag === filter
@@ -183,11 +174,8 @@ export default function AdminUsers() {
 
         {/* SEARCH + FILTERS */}
         <div style={{
-          display: 'flex',
-          gap: '12px',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          alignItems: 'center',
+          display: 'flex', gap: '12px',
+          marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center',
         }}>
           <input
             placeholder="Search by name or slug..."
@@ -198,9 +186,7 @@ export default function AdminUsers() {
               background: '#1e293b',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: '9px',
-              fontSize: '13px',
-              color: '#fff',
-              outline: 'none',
+              fontSize: '13px', color: '#fff', outline: 'none',
               fontFamily: "'DM Sans', sans-serif",
               minWidth: '240px',
             }}
@@ -216,10 +202,8 @@ export default function AdminUsers() {
                   border: `1px solid ${filter === f ? '#C9A84C' : 'rgba(255,255,255,0.1)'}`,
                   background: filter === f ? 'rgba(201,168,76,0.15)' : 'transparent',
                   color: filter === f ? '#C9A84C' : 'rgba(255,255,255,0.4)',
-                  fontSize: '12.5px',
-                  cursor: 'pointer',
+                  fontSize: '12.5px', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
-                  transition: 'all .15s',
                 }}
               >
                 {f}
@@ -245,13 +229,10 @@ export default function AdminUsers() {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {['Business', 'Catalogue URL', 'Location', 'Plan', 'Status', 'Plan Expiry', 'Joined', 'Actions'].map(h => (
                     <th key={h} style={{
-                      padding: '12px 20px',
-                      textAlign: 'left',
-                      fontSize: '11px',
-                      fontWeight: 700,
+                      padding: '12px 20px', textAlign: 'left',
+                      fontSize: '11px', fontWeight: 700,
                       color: 'rgba(255,255,255,0.3)',
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
+                      letterSpacing: '1px', textTransform: 'uppercase',
                       whiteSpace: 'nowrap',
                     }}>
                       {h}
@@ -263,26 +244,20 @@ export default function AdminUsers() {
                 {displayed.length === 0 ? (
                   <tr>
                     <td colSpan={8} style={{
-                      padding: '48px',
-                      textAlign: 'center',
-                      color: 'rgba(255,255,255,0.2)',
-                      fontSize: '13px',
+                      padding: '48px', textAlign: 'center',
+                      color: 'rgba(255,255,255,0.2)', fontSize: '13px',
                     }}>
                       No users found
                     </td>
                   </tr>
                 ) : displayed.map(u => {
                   const status = getUserStatus(u)
-                  const sub = u.subscriptions?.[0]
-                  const plan = sub?.plan || 'free'
+                  const plan = u.sub?.plan || 'free'
                   const isPending = status.tag === 'Pending'
 
                   return (
-                    <tr
-                      key={u.id}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                    >
-                      {/* BUSINESS */}
+                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>
                           {u.business_name}
@@ -292,116 +267,91 @@ export default function AdminUsers() {
                         </div>
                       </td>
 
-                      {/* CATALOGUE */}
                       <td style={{ padding: '14px 20px' }}>
                         <span
                           onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
                           style={{
-                            fontSize: '12px',
-                            color: '#C9A84C',
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
+                            fontSize: '12px', color: '#C9A84C',
+                            cursor: 'pointer', textDecoration: 'underline',
                           }}
                         >
                           /catalogue/{u.slug}
                         </span>
                       </td>
 
-                      {/* LOCATION */}
                       <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                         {u.location || '—'}
                       </td>
 
-                      {/* PLAN */}
                       <td style={{ padding: '14px 20px' }}>
                         <span style={{
                           background: 'rgba(255,255,255,0.06)',
-                          borderRadius: '6px',
-                          padding: '3px 10px',
-                          fontSize: '11.5px',
-                          color: 'rgba(255,255,255,0.6)',
+                          borderRadius: '6px', padding: '3px 10px',
+                          fontSize: '11.5px', color: 'rgba(255,255,255,0.6)',
                           textTransform: 'capitalize',
                         }}>
                           {plan}
                         </span>
                       </td>
 
-                      {/* STATUS */}
                       <td style={{ padding: '14px 20px' }}>
                         <span style={{
                           background: `${status.color}18`,
-                          color: status.color,
-                          borderRadius: '99px',
-                          padding: '3px 10px',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
+                          color: status.color, borderRadius: '99px',
+                          padding: '3px 10px', fontSize: '11.5px',
+                          fontWeight: 600, whiteSpace: 'nowrap',
                         }}>
                           {status.label}
                         </span>
                       </td>
 
-                      {/* PLAN EXPIRY */}
                       <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
                         {plan !== 'free' ? getPlanExpiry(u) : '—'}
                       </td>
 
-                      {/* JOINED */}
                       <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
                         {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </td>
 
-                      {/* ACTIONS */}
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ display: 'flex', gap: '6px' }}>
-                          {/* Activate trial — only if pending */}
                           {isPending && (
                             <button
                               onClick={() => activateTrial(u)}
+                              disabled={saving}
                               style={{
                                 background: 'rgba(96,165,250,0.15)',
                                 border: '1px solid rgba(96,165,250,0.3)',
-                                borderRadius: '7px',
-                                padding: '5px 10px',
-                                fontSize: '11.5px',
-                                color: '#60a5fa',
-                                cursor: 'pointer',
-                                fontFamily: "'DM Sans', sans-serif",
+                                borderRadius: '7px', padding: '5px 10px',
+                                fontSize: '11.5px', color: '#60a5fa',
+                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                                 whiteSpace: 'nowrap',
                               }}
                             >
                               ▶ Start Trial
                             </button>
                           )}
-                          {/* Change plan */}
                           <button
                             onClick={() => openActionModal(u)}
                             style={{
                               background: 'rgba(201,168,76,0.12)',
                               border: '1px solid rgba(201,168,76,0.25)',
-                              borderRadius: '7px',
-                              padding: '5px 10px',
-                              fontSize: '11.5px',
-                              color: '#C9A84C',
-                              cursor: 'pointer',
-                              fontFamily: "'DM Sans', sans-serif",
+                              borderRadius: '7px', padding: '5px 10px',
+                              fontSize: '11.5px', color: '#C9A84C',
+                              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                               whiteSpace: 'nowrap',
                             }}
                           >
                             ✏️ Plan
                           </button>
-                          {/* View catalogue */}
                           <button
                             onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
                             style={{
                               background: 'rgba(255,255,255,0.06)',
                               border: '1px solid rgba(255,255,255,0.1)',
-                              borderRadius: '7px',
-                              padding: '5px 10px',
-                              fontSize: '11.5px',
-                              color: 'rgba(255,255,255,0.4)',
-                              cursor: 'pointer',
-                              fontFamily: "'DM Sans', sans-serif",
+                              borderRadius: '7px', padding: '5px 10px',
+                              fontSize: '11.5px', color: 'rgba(255,255,255,0.4)',
+                              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                             }}
                           >
                             👁
@@ -417,17 +367,14 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* ══ CHANGE PLAN MODAL ══ */}
+      {/* CHANGE PLAN MODAL */}
       {actionModal && (
         <div
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            zIndex: 500,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
+            background: 'rgba(0,0,0,0.7)', zIndex: 500,
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center', padding: '20px',
           }}
           onClick={() => setActionModal(null)}
         >
@@ -435,19 +382,15 @@ export default function AdminUsers() {
             style={{
               background: '#1e293b',
               border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '20px',
-              padding: '32px',
-              width: '100%',
-              maxWidth: '380px',
+              borderRadius: '20px', padding: '32px',
+              width: '100%', maxWidth: '380px',
               boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
             }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
-              fontSize: '22px',
-              color: '#fff',
-              marginBottom: '4px',
+              fontSize: '22px', color: '#fff', marginBottom: '4px',
             }}>
               Change Plan
             </div>
@@ -457,13 +400,9 @@ export default function AdminUsers() {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{
-                display: 'block',
-                fontSize: '11px',
-                fontWeight: 700,
-                color: 'rgba(255,255,255,0.4)',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                marginBottom: '8px',
+                display: 'block', fontSize: '11px', fontWeight: 700,
+                color: 'rgba(255,255,255,0.4)', letterSpacing: '1px',
+                textTransform: 'uppercase', marginBottom: '8px',
               }}>
                 Select Plan
               </label>
@@ -477,16 +416,12 @@ export default function AdminUsers() {
                   key={p.value}
                   onClick={() => setNewPlan(p.value)}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 14px',
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'center', padding: '12px 14px',
                     borderRadius: '10px',
                     border: `1.5px solid ${newPlan === p.value ? '#C9A84C' : 'rgba(255,255,255,0.08)'}`,
                     background: newPlan === p.value ? 'rgba(201,168,76,0.1)' : 'transparent',
-                    cursor: 'pointer',
-                    marginBottom: '8px',
-                    transition: 'all .15s',
+                    cursor: 'pointer', marginBottom: '8px',
                   }}
                 >
                   <span style={{ fontSize: '13px', color: newPlan === p.value ? '#C9A84C' : 'rgba(255,255,255,0.7)' }}>
@@ -505,13 +440,10 @@ export default function AdminUsers() {
               <button
                 onClick={() => setActionModal(null)}
                 style={{
-                  flex: 1, padding: '11px',
-                  borderRadius: '10px',
+                  flex: 1, padding: '11px', borderRadius: '10px',
                   border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.4)',
-                  fontSize: '13px',
-                  cursor: 'pointer',
+                  background: 'transparent', color: 'rgba(255,255,255,0.4)',
+                  fontSize: '13px', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
@@ -521,13 +453,9 @@ export default function AdminUsers() {
                 onClick={savePlanChange}
                 disabled={saving}
                 style={{
-                  flex: 2, padding: '11px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: '#C9A84C',
-                  color: '#0f172a',
-                  fontSize: '13px',
-                  fontWeight: 700,
+                  flex: 2, padding: '11px', borderRadius: '10px',
+                  border: 'none', background: '#C9A84C',
+                  color: '#0f172a', fontSize: '13px', fontWeight: 700,
                   cursor: saving ? 'default' : 'pointer',
                   opacity: saving ? 0.7 : 1,
                   fontFamily: "'DM Sans', sans-serif",
