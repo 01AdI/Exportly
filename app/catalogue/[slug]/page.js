@@ -56,7 +56,7 @@ export default function CataloguePage() {
     } else {
       setFiltered(products.filter(p => p.category === activeCategory))
     }
-  }, [products, search, activeCategory])
+  }, [products, activeCategory])
 
     // Cleanup timers on page leave
   useEffect(() => {
