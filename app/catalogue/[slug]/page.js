@@ -32,6 +32,10 @@ export default function CataloguePage() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
   const [toast, setToast] = useState('')
+  const viewTimerRef = useRef(null)        // 30s product timer
+  const categoryTimerRef = useRef(null)    // 2min category timer
+  const lastCategoryRef = useRef('All')    // which category they're in
+  const productsOpenedRef = useRef(0)      // how many products opened this session
 
   // Enquiry modal
   const [showEnquiry, setShowEnquiry] = useState(false)
@@ -52,7 +56,16 @@ export default function CataloguePage() {
     } else {
       setFiltered(products.filter(p => p.category === activeCategory))
     }
-  }, [products, activeCategory])
+  }, [products, search, activeCategory])
+
+    // Cleanup timers on page leave
+  useEffect(() => {
+  return () => {
+    if (viewTimerRef.current) clearTimeout(viewTimerRef.current)
+    if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
+  }
+  }, [])
+
 
   async function fetchCatalogue() {
     const { data: profileData } = await supabase
@@ -87,50 +100,96 @@ export default function CataloguePage() {
   }
 
   async function openProduct(product) {
-    if (product.stock === 0) return
     setSelectedProduct(product)
     setPanelOpen(true)
 
+    // clear existing 30s timer
+    if (viewTimerRef.current) clearTimeout(viewTimerRef.current)
+
+    // increment views
     await supabase
       .from('products')
-      .update({ views: product.views + 1 })
+      .update({ views: (product.views || 0) + 1 })
       .eq('id', product.id)
 
+    // track view
     await supabase.from('catalogue_views').insert({
-      user_id: product.user_id,
+      user_id: profile.user_id,
       product_id: product.id,
       buyer_session_id: sessionId.current,
     })
 
-    if ((product.views + 1) >= 10 && (product.views + 1) % 10 === 0) {
-      await supabase.from('alerts').insert({
-        user_id: product.user_id,
+    // milestone alert every 10 views
+    const newViews = (product.views || 0) + 1
+    if (newViews >= 10 && newViews % 10 === 0) {
+      supabase.from('alerts').insert({
+        user_id: profile.user_id,
         type: 'hot',
-        title: `🔥 ${product.name} is getting attention`,
-        subtitle: `${product.views + 1} views so far`,
+        title: `🔥 ${product.name} hit ${newViews} views`,
+        subtitle: `This product is getting serious attention from buyers`,
         product_id: product.id,
       })
     }
+
+    // count products opened this session
+    productsOpenedRef.current += 1
+
+    // hot buyer alert — after 3 products opened in same session
+    if (productsOpenedRef.current === 3) {
+      supabase.from('alerts').insert({
+        user_id: profile.user_id,
+        type: 'hot',
+        title: `🔥 Hot buyer browsing your catalogue`,
+        subtitle: `A buyer has opened ${productsOpenedRef.current}+ products in this session — high intent`,
+      })
+    }
+
+    // 30s deep interest alert
+    viewTimerRef.current = setTimeout(() => {
+      supabase.from('alerts').insert({
+        user_id: profile.user_id,
+        type: 'hot',
+        title: `👀 Buyer spending time on ${product.name}`,
+        subtitle: `A buyer has been viewing this product for over 30 seconds`,
+        product_id: product.id,
+      })
+    }, 30000)
   }
 
   function closePanel() {
     setPanelOpen(false)
+    if (viewTimerRef.current) {
+      clearTimeout(viewTimerRef.current)
+      viewTimerRef.current = null
+    }
     setTimeout(() => setSelectedProduct(null), 380)
   }
 
   function toggleWishlist(product, e) {
-    e?.stopPropagation()
-    const exists = wishlist.find(p => p.id === product.id)
-    if (exists) {
-      setWishlist(prev => prev.filter(p => p.id !== product.id))
-      showToast('Removed from wishlist')
-    } else {
-      setWishlist(prev => [...prev, product])
-      showToast('❤️ Added to wishlist!')
-      supabase.from('products').update({
-        wishlist_count: (product.wishlist_count || 0) + 1
-      }).eq('id', product.id)
-    }
+    e.stopPropagation()
+    setWishlist(prev => {
+      const exists = prev.find(p => p.id === product.id)
+      if (exists) {
+        return prev.filter(p => p.id !== product.id)
+      } else {
+        supabase
+          .from('products')
+          .update({ wishlist_count: (product.wishlist_count || 0) + 1 })
+          .eq('id', product.id)
+
+        // alert exporter about wishlist
+        supabase.from('alerts').insert({
+          user_id: profile.user_id,
+          type: 'hot',
+          title: `❤️ ${product.name} added to wishlist`,
+          subtitle: `A buyer saved this product — they may enquire soon`,
+          product_id: product.id,
+        })
+
+        showToast('❤️ Added to wishlist')
+        return [...prev, product]
+      }
+    })
   }
 
   function isWishlisted(id) {
@@ -340,8 +399,22 @@ export default function CataloguePage() {
             <button
               key={cat}
               className={`cpill ${activeCategory === cat ? 'active' : ''}`}
-              onClick={() => setActiveCategory(cat)}
-            >
+              onClick={() => 
+                {
+                  setActiveCategory(cat)
+                  if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
+                  if (cat === 'All' || cat === 'all') return
+                  lastCategoryRef.current = cat
+                  categoryTimerRef.current = setTimeout(() => {
+                    supabase.from('alerts').insert({
+                      user_id: profile.user_id,
+                      type: 'hot',
+                      title: `👀 Buyer browsing ${cat} category`,
+                      subtitle: `A buyer has been exploring your ${cat} collection for over 2 minutes — high interest`,
+                    })
+                  }, 120000)
+                }}
+              >
               {cat === 'all' ? 'All Collections' : cat}
             </button>
           ))}
@@ -523,7 +596,31 @@ export default function CataloguePage() {
             <div className="dp-actions">
                 <button
                 className="wa-quot-btn"
-                onClick={e => openEnquiry(selectedProduct, e)}
+                onClick={() => {
+                        const number = profile.whatsapp_number.replace(/[^0-9]/g, '')
+                        const msg = encodeURIComponent(
+                          `Hello! I'm interested in *${selectedProduct.name}* from your catalogue.\n\nCould you share pricing, MOQ and availability details?`
+                        )
+                        window.open(`https://wa.me/${number}?text=${msg}`, '_blank')
+
+                        // save lead
+                        supabase.from('leads').insert({
+                          user_id: profile.user_id,
+                          buyer_name: null,
+                          buyer_whatsapp: null,
+                          products_interested: [selectedProduct.name],
+                          stage: 'new',
+                          note: 'Enquired from product detail panel',
+                        })
+
+                        supabase.from('alerts').insert({
+                          user_id: profile.user_id,
+                          type: 'lead',
+                          title: `New WhatsApp enquiry — ${selectedProduct.name}`,
+                          subtitle: 'Buyer tapped Ask for Quotation from product detail panel',
+                          product_id: selectedProduct.id,
+                        })
+                  }}
                 >
                 {WA_ICON}
                 Ask for Quotation via WhatsApp
