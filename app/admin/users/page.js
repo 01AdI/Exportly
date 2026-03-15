@@ -228,156 +228,143 @@ export default function AdminUsers() {
           borderRadius: '16px', overflow: 'hidden',
         }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['Business', 'Catalogue URL', 'Location', 'Plan', 'Status', 'Plan Expiry', 'Joined', 'Actions'].map(h => (
-                    <th key={h} style={{
-                      padding: '12px 20px', textAlign: 'left',
-                      fontSize: '11px', fontWeight: 700,
-                      color: 'rgba(255,255,255,0.3)',
-                      letterSpacing: '1px', textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayed.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{
-                      padding: '48px', textAlign: 'center',
-                      color: 'rgba(255,255,255,0.2)', fontSize: '13px',
-                    }}>
-                      No users found
-                    </td>
-                  </tr>
-                ) : displayed.map(u => {
-                  const status = getUserStatus(u)
-                  const plan = u.sub?.plan || 'free'
-                  const isPending = status.tag === 'Pending'
-
-                  return (
-                    <tr
-                      key={u.id}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>
-                          {u.business_name}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
-                          {u.whatsapp_number || 'No WhatsApp'}
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '14px 20px' }}>
-                        <span
-                          onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
-                          onMouseEnter={e => e.currentTarget.style.color = '#e0c068'}
-                          onMouseLeave={e => e.currentTarget.style.color = '#C9A84C'}
-                          style={{
-                            fontSize: '12px', color: '#C9A84C',
-                            cursor: 'pointer', textDecoration: 'underline',
-                          }}
-                        >
-                          /catalogue/{u.slug}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {u.location || '—'}
-                      </td>
-
-                      <td style={{ padding: '14px 20px' }}>
-                        <span style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          borderRadius: '6px', padding: '3px 10px',
-                          fontSize: '11.5px', color: 'rgba(255,255,255,0.6)',
-                          textTransform: 'capitalize',
+            <table className="admin-table">
+                <thead>
+                    <tr>
+                    {['Business', 'Catalogue URL', 'Location', 'Plan', 'Status', 'Plan Expiry', 'Joined', 'Actions'].map(h => (
+                        <th key={h}>{h}</th>
+                    ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {displayed.length === 0 ? (
+                    <tr>
+                        <td colSpan={8} style={{
+                        padding: '48px', textAlign: 'center',
+                        color: 'rgba(255,255,255,0.2)', fontSize: '13px',
                         }}>
-                          {plan}
-                        </span>
-                      </td>
+                        No users found
+                        </td>
+                    </tr>
+                    ) : displayed.map(u => {
+                    const status = getUserStatus(u)
+                    const plan = u.sub?.plan || 'free'
+                    const isPending = status.tag === 'Pending'
 
-                      <td style={{ padding: '14px 20px' }}>
-                        <span style={{
-                          background: `${status.color}18`,
-                          color: status.color, borderRadius: '99px',
-                          padding: '3px 10px', fontSize: '11.5px',
-                          fontWeight: 600, whiteSpace: 'nowrap',
-                        }}>
-                          {status.label}
-                        </span>
-                      </td>
+                    return (
+                        <tr key={u.id}>
+                        <td>
+                            <div style={{ fontWeight: 600, color: '#fff', marginBottom: '2px', fontSize: '13px' }}>
+                            {u.business_name}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>
+                            {u.whatsapp_number || 'No WhatsApp'}
+                            </div>
+                        </td>
 
-                      <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {plan !== 'free' ? getPlanExpiry(u) : '—'}
-                      </td>
+                        <td>
+                            <span
+                            onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
+                            onMouseEnter={e => e.currentTarget.style.color = '#e0c068'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#C9A84C'}
+                            style={{
+                                fontSize: '12px', color: '#C9A84C',
+                                cursor: 'pointer', textDecoration: 'underline',
+                            }}
+                            >
+                            /catalogue/{u.slug}
+                            </span>
+                        </td>
 
-                      <td style={{ padding: '14px 20px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap' }}>
-                        {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
+                        <td className="td-muted">{u.location || '—'}</td>
 
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {isPending && (
+                        <td>
+                            <span style={{
+                            background: 'rgba(255,255,255,0.08)',
+                            borderRadius: '6px', padding: '3px 10px',
+                            fontSize: '11.5px', color: 'rgba(255,255,255,0.7)',
+                            textTransform: 'capitalize',
+                            }}>
+                            {plan}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span style={{
+                            background: `${status.color}22`,
+                            color: status.color, borderRadius: '99px',
+                            padding: '4px 12px', fontSize: '11.5px',
+                            fontWeight: 600, whiteSpace: 'nowrap',
+                            }}>
+                            {status.label}
+                            </span>
+                        </td>
+
+                        <td className="td-muted">
+                            {plan !== 'free' ? getPlanExpiry(u) : '—'}
+                        </td>
+
+                        <td className="td-muted" style={{ whiteSpace: 'nowrap' }}>
+                            {new Date(u.created_at).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'short', year: 'numeric'
+                            })}
+                        </td>
+
+                        <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                            {isPending && (
+                                <button
+                                onClick={() => activateTrial(u)}
+                                disabled={saving}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.25)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.15)'}
+                                style={{
+                                    background: 'rgba(96,165,250,0.15)',
+                                    border: '1px solid rgba(96,165,250,0.3)',
+                                    borderRadius: '7px', padding: '5px 10px',
+                                    fontSize: '11.5px', color: '#60a5fa',
+                                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                                    whiteSpace: 'nowrap',
+                                }}
+                                >
+                                ▶ Start Trial
+                                </button>
+                            )}
                             <button
-                              onClick={() => activateTrial(u)}
-                              disabled={saving}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.25)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.15)'}
-                              style={{
-                                background: 'rgba(96,165,250,0.15)',
-                                border: '1px solid rgba(96,165,250,0.3)',
+                                onClick={() => openActionModal(u)}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.22)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.12)'}
+                                style={{
+                                background: 'rgba(201,168,76,0.12)',
+                                border: '1px solid rgba(201,168,76,0.25)',
                                 borderRadius: '7px', padding: '5px 10px',
-                                fontSize: '11.5px', color: '#60a5fa',
+                                fontSize: '11.5px', color: '#C9A84C',
                                 cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                                 whiteSpace: 'nowrap',
-                              }}
+                                }}
                             >
-                              ▶ Start Trial
+                                ✏️ Plan
                             </button>
-                          )}
-                          <button
-                            onClick={() => openActionModal(u)}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.22)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.12)'}
-                            style={{
-                              background: 'rgba(201,168,76,0.12)',
-                              border: '1px solid rgba(201,168,76,0.25)',
-                              borderRadius: '7px', padding: '5px 10px',
-                              fontSize: '11.5px', color: '#C9A84C',
-                              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            ✏️ Plan
-                          </button>
-                          <button
-                            onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                            style={{
-                              background: 'rgba(255,255,255,0.06)',
-                              border: '1px solid rgba(255,255,255,0.1)',
-                              borderRadius: '7px', padding: '5px 10px',
-                              fontSize: '11.5px', color: 'rgba(255,255,255,0.4)',
-                              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-                            }}
-                          >
-                            👁
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
+                            <button
+                                onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                style={{
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '7px', padding: '5px 10px',
+                                fontSize: '11.5px', color: 'rgba(255,255,255,0.5)',
+                                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                                }}
+                            >
+                                👁
+                            </button>
+                            </div>
+                        </td>
+                        </tr>
+                    )
+                    })}
+                </tbody>
             </table>
           </div>
         </div>

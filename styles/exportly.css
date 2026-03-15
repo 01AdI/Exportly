@@ -1138,3 +1138,52 @@ canvas{display:block;width:100%!important;}
     display: none !important;
   }
 }
+
+/* ══ ADMIN PANEL TABLES ══ */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.admin-table thead tr {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-table thead th {
+  padding: 12px 20px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background .15s;
+}
+
+.admin-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.admin-table tbody td {
+  padding: 14px 20px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  vertical-align: middle;
+}
+
+.admin-table tbody td.td-primary {
+  color: #fff;
+  font-weight: 600;
+}
+
+.admin-table tbody td.td-muted {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+}

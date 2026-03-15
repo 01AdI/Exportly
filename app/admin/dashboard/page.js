@@ -214,87 +214,77 @@ export default function AdminDashboard() {
             </button>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['Business', 'Catalogue', 'Plan', 'Status', 'Joined'].map(h => (
-                    <th key={h} style={{
-                      padding: '11px 24px', textAlign: 'left',
-                      fontSize: '11px', fontWeight: 700,
-                      color: 'rgba(255,255,255,0.3)',
-                      letterSpacing: '1px', textTransform: 'uppercase',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{
-                      padding: '48px', textAlign: 'center',
-                      color: 'rgba(255,255,255,0.2)', fontSize: '13px',
-                    }}>
-                      No users yet
-                    </td>
-                  </tr>
-                ) : recentUsers.map(u => {
-                  const sub = u.sub
-                  const plan = sub?.plan || 'free'
-                  const trialStarted = sub?.trial_started_at
-                  let statusLabel = 'Pending'
-                  let statusColor = '#a78bfa'
-
-                  if (plan !== 'free') {
-                    statusLabel = 'Paid'
-                    statusColor = '#34d399'
-                  } else if (trialStarted) {
-                    const started = new Date(trialStarted)
-                    const expiry = new Date(started.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
-                    const daysLeft = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24))
-                    if (daysLeft <= 0) { statusLabel = 'Expired'; statusColor = '#f87171' }
-                    else { statusLabel = `${daysLeft}d left`; statusColor = '#60a5fa' }
-                  }
-
-                  return (
-                    <tr
-                      key={u.id}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      <td style={{ padding: '14px 24px', fontSize: '13px', color: '#fff', fontWeight: 600 }}>
-                        {u.business_name}
-                      </td>
-                      <td style={{ padding: '14px 24px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        /catalogue/{u.slug}
-                      </td>
-                      <td style={{ padding: '14px 24px' }}>
-                        <span style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          borderRadius: '6px', padding: '3px 10px',
-                          fontSize: '11.5px', color: 'rgba(255,255,255,0.6)',
-                          textTransform: 'capitalize',
-                        }}>
-                          {plan}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 24px' }}>
-                        <span style={{
-                          background: `${statusColor}18`,
-                          color: statusColor, borderRadius: '99px',
-                          padding: '3px 10px', fontSize: '11.5px', fontWeight: 600,
-                        }}>
-                          {statusLabel}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 24px', fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>
-                        {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </td>
+            <table className="admin-table">
+                <thead>
+                    <tr>
+                    {['Business', 'Catalogue', 'Plan', 'Status', 'Joined'].map(h => (
+                        <th key={h}>{h}</th>
+                    ))}
                     </tr>
-                  )
-                })}
+                </thead>
+              <tbody>
+                    {recentUsers.length === 0 ? (
+                    <tr>
+                        <td colSpan={5} style={{
+                        padding: '48px', textAlign: 'center',
+                        color: 'rgba(255,255,255,0.2)', fontSize: '13px',
+                        }}>
+                        No users yet
+                        </td>
+                    </tr>
+                    ) : recentUsers.map(u => {
+                    const sub = u.sub
+                    const plan = sub?.plan || 'free'
+                    const trialStarted = sub?.trial_started_at
+                    let statusLabel = 'Pending'
+                    let statusColor = '#a78bfa'
+
+                    if (plan !== 'free') {
+                        statusLabel = 'Paid'
+                        statusColor = '#34d399'
+                    } else if (trialStarted) {
+                        const started = new Date(trialStarted)
+                        const expiry = new Date(started.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
+                        const daysLeft = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24))
+                        if (daysLeft <= 0) { statusLabel = 'Expired'; statusColor = '#f87171' }
+                        else { statusLabel = `${daysLeft}d left`; statusColor = '#60a5fa' }
+                    }
+
+                    return (
+                        <tr key={u.id}>
+                        <td className="td-primary">
+                            {u.business_name}
+                        </td>
+                        <td className="td-muted">
+                            /catalogue/{u.slug}
+                        </td>
+                        <td>
+                            <span style={{
+                            background: 'rgba(255,255,255,0.08)',
+                            borderRadius: '6px', padding: '3px 10px',
+                            fontSize: '11.5px', color: 'rgba(255,255,255,0.7)',
+                            textTransform: 'capitalize',
+                            }}>
+                            {plan}
+                            </span>
+                        </td>
+                        <td>
+                            <span style={{
+                            background: `${statusColor}22`,
+                            color: statusColor, borderRadius: '99px',
+                            padding: '4px 12px', fontSize: '11.5px', fontWeight: 600,
+                            }}>
+                            {statusLabel}
+                            </span>
+                        </td>
+                        <td className="td-muted">
+                            {new Date(u.created_at).toLocaleDateString('en-IN', {
+                            day: 'numeric', month: 'short', year: 'numeric'
+                            })}
+                        </td>
+                        </tr>
+                    )
+                    })}
               </tbody>
             </table>
           </div>
