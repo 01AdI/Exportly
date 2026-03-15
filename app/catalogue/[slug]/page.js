@@ -32,10 +32,12 @@ export default function CataloguePage() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
   const [toast, setToast] = useState('')
-  const viewTimerRef = useRef(null)        // 30s product timer
-  const categoryTimerRef = useRef(null)    // 2min category timer
-  const lastCategoryRef = useRef('All')    // which category they're in
-  const productsOpenedRef = useRef(0)      // how many products opened this session
+
+  const viewTimerRef = useRef(null)
+  const categoryTimerRef = useRef(null)
+  const lastCategoryRef = useRef('all')
+  const productsOpenedRef = useRef(0)
+  const productOpenedAtRef = useRef(0)
 
   // Enquiry modal
   const [showEnquiry, setShowEnquiry] = useState(false)
@@ -58,14 +60,13 @@ export default function CataloguePage() {
     }
   }, [products, activeCategory])
 
-    // Cleanup timers on page leave
+  // Cleanup timers on page leave
   useEffect(() => {
-  return () => {
-    if (viewTimerRef.current) clearTimeout(viewTimerRef.current)
-    if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
-  }
+    return () => {
+      if (viewTimerRef.current) clearTimeout(viewTimerRef.current)
+      if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
+    }
   }, [])
-
 
   async function fetchCatalogue() {
     const { data: profileData } = await supabase
@@ -89,12 +90,18 @@ export default function CataloguePage() {
       user_id: profileData.user_id,
       buyer_session_id: sessionId.current,
     })
-    await supabase.from('alerts').insert({
-      user_id: profileData.user_id,
-      type: 'hot',
-      title: 'Someone is viewing your catalogue',
-      subtitle: 'A buyer just opened your catalogue',
-    })
+
+    // ── Once per session only ──
+    const sessionAlertKey = `catalogue_alerted_${profileData.slug}`
+    if (!sessionStorage.getItem(sessionAlertKey)) {
+      sessionStorage.setItem(sessionAlertKey, '1')
+      await supabase.from('alerts').insert({
+        user_id: profileData.user_id,
+        type: 'hot',
+        title: 'Someone is viewing your catalogue',
+        subtitle: 'A buyer just opened your catalogue',
+      })
+    }
 
     setLoading(false)
   }
@@ -102,8 +109,9 @@ export default function CataloguePage() {
   async function openProduct(product) {
     setSelectedProduct(product)
     setPanelOpen(true)
-
-    // clear existing 30s timer
+    productOpenedAtRef.current = Date.now() // ← add this line
+    
+    // clear existing timer
     if (viewTimerRef.current) clearTimeout(viewTimerRef.current)
 
     // increment views
@@ -119,7 +127,7 @@ export default function CataloguePage() {
       buyer_session_id: sessionId.current,
     })
 
-    // milestone alert every 10 views
+    // milestone alert every 10 views — always fires (intentional)
     const newViews = (product.views || 0) + 1
     if (newViews >= 10 && newViews % 10 === 0) {
       supabase.from('alerts').insert({
@@ -134,39 +142,58 @@ export default function CataloguePage() {
     // count products opened this session
     productsOpenedRef.current += 1
 
-    // hot buyer alert — after 3 products opened in same session
+    // hot buyer alert — once per session after 3 products
     if (productsOpenedRef.current === 3) {
-      supabase.from('alerts').insert({
-        user_id: profile.user_id,
-        type: 'hot',
-        title: `🔥 Hot buyer browsing your catalogue`,
-        subtitle: `A buyer has opened ${productsOpenedRef.current}+ products in this session — high intent`,
-      })
+      const hotKey = `hot_buyer_alerted_${sessionId.current}`
+      if (!sessionStorage.getItem(hotKey)) {
+        sessionStorage.setItem(hotKey, '1')
+        supabase.from('alerts').insert({
+          user_id: profile.user_id,
+          type: 'hot',
+          title: `🔥 Hot buyer browsing your catalogue`,
+          subtitle: `A buyer has opened 3+ products in this session — high intent`,
+        })
+      }
     }
 
-    // 30s deep interest alert
+    // ── 15s deep interest alert — once per product per session ──
     viewTimerRef.current = setTimeout(() => {
-      supabase.from('alerts').insert({
-        user_id: profile.user_id,
-        type: 'hot',
-        title: `👀 Buyer spending time on ${product.name}`,
-        subtitle: `A buyer has been viewing this product for over 30 seconds`,
-        product_id: product.id,
-      })
-    }, 30000)
+      const viewKey = `view15_alerted_${product.id}`
+      if (!sessionStorage.getItem(viewKey)) {
+        sessionStorage.setItem(viewKey, '1')
+        supabase.from('alerts').insert({
+          user_id: profile.user_id,
+          type: 'hot',
+          title: `👀 Buyer spending time on ${product.name}`,
+          subtitle: `A buyer has been viewing this product for over 15 seconds`,
+          product_id: product.id,
+        })
+      }
+    }, 15000)
   }
 
-  function closePanel() {
+    function closePanel() {
     setPanelOpen(false)
     if (viewTimerRef.current) {
       clearTimeout(viewTimerRef.current)
       viewTimerRef.current = null
     }
+
+    // update duration_in_seconds in catalogue_views
+    if (selectedProduct && productOpenedAtRef.current) {
+      const seconds = Math.floor((Date.now() - productOpenedAtRef.current) / 1000)
+      supabase
+        .from('catalogue_views')
+        .update({ duration_in_seconds: seconds })
+        .eq('product_id', selectedProduct.id)
+        .eq('buyer_session_id', sessionId.current)
+    }
+
     setTimeout(() => setSelectedProduct(null), 380)
   }
 
   function toggleWishlist(product, e) {
-    e.stopPropagation()
+    e?.stopPropagation()
     setWishlist(prev => {
       const exists = prev.find(p => p.id === product.id)
       if (exists) {
@@ -177,14 +204,18 @@ export default function CataloguePage() {
           .update({ wishlist_count: (product.wishlist_count || 0) + 1 })
           .eq('id', product.id)
 
-        // alert exporter about wishlist
-        supabase.from('alerts').insert({
-          user_id: profile.user_id,
-          type: 'hot',
-          title: `❤️ ${product.name} added to wishlist`,
-          subtitle: `A buyer saved this product — they may enquire soon`,
-          product_id: product.id,
-        })
+        // ── Once per product per session ──
+        const wlKey = `wl_alerted_${product.id}`
+        if (!sessionStorage.getItem(wlKey)) {
+          sessionStorage.setItem(wlKey, '1')
+          supabase.from('alerts').insert({
+            user_id: profile.user_id,
+            type: 'hot',
+            title: `❤️ ${product.name} added to wishlist`,
+            subtitle: `A buyer saved this product — they may enquire soon`,
+            product_id: product.id,
+          })
+        }
 
         showToast('❤️ Added to wishlist')
         return [...prev, product]
@@ -196,7 +227,6 @@ export default function CataloguePage() {
     return wishlist.some(p => p.id === id)
   }
 
-  // ── OPEN ENQUIRY MODAL ──
   function openEnquiry(product, e) {
     e?.stopPropagation()
     setEnquiryProduct(product || null)
@@ -217,7 +247,6 @@ export default function CataloguePage() {
 
   function sendEnquiry() {
     setEnquiryError('')
-
     if (!enquiryForm.what.trim()) {
       setEnquiryError('Please tell us what you are looking for')
       return
@@ -238,13 +267,9 @@ export default function CataloguePage() {
     const issues = selectedIssues.map(i =>
       i === 'Other' ? `Other: ${enquiryForm.otherIssue}` : i
     )
-
     const number = profile.whatsapp_number.replace(/[^0-9]/g, '')
-    const productLine = enquiryProduct
-      ? `Product: *${enquiryProduct.name}*\n` : ''
-    const issuesLine = issues.length > 0
-      ? `Issue: ${issues.join(', ')}\n` : ''
-
+    const productLine = enquiryProduct ? `Product: *${enquiryProduct.name}*\n` : ''
+    const issuesLine = issues.length > 0 ? `Issue: ${issues.join(', ')}\n` : ''
     const msg =
       `Hello! I have an enquiry from your catalogue.\n\n` +
       productLine +
@@ -253,10 +278,7 @@ export default function CataloguePage() {
       `\nName: ${enquiryForm.name}\n` +
       `WhatsApp: ${enquiryForm.phone}`
 
-    window.open(
-      `https://wa.me/${number}?text=${encodeURIComponent(msg)}`,
-      '_blank'
-    )
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, '_blank')
 
     supabase.from('leads').insert({
       user_id: profile.user_id,
@@ -267,6 +289,7 @@ export default function CataloguePage() {
       note: `Looking for: ${enquiryForm.what}. Issues: ${issues.join(', ')}`,
     })
 
+    // lead alert — always fires (intentional, each enquiry is unique)
     supabase.from('alerts').insert({
       user_id: profile.user_id,
       type: 'lead',
@@ -281,7 +304,6 @@ export default function CataloguePage() {
     showToast('📲 Opening WhatsApp with your request...')
   }
 
-  // ── WISHLIST WHATSAPP (direct — no modal needed) ──
   function whatsappWishlist() {
     if (!profile?.whatsapp_number) return
     const number = profile.whatsapp_number.replace(/[^0-9]/g, '')
@@ -292,10 +314,7 @@ export default function CataloguePage() {
       `Hello! I'm interested in the following products from your catalogue:\n\n` +
       list +
       `\n\nCould you share pricing and availability?`
-    window.open(
-      `https://wa.me/${number}?text=${encodeURIComponent(msg)}`,
-      '_blank'
-    )
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(msg)}`, '_blank')
     supabase.from('leads').insert({
       user_id: profile.user_id,
       products_interested: wishlist.map(p => p.name),
@@ -317,7 +336,6 @@ export default function CataloguePage() {
       })).filter(g => g.items.length > 0)
     : [{ cat: activeCategory, items: filtered }]
 
-  // ── NOT FOUND ──
   if (notFound) return (
     <div style={{
       minHeight: '100vh', background: 'var(--cream)',
@@ -334,7 +352,6 @@ export default function CataloguePage() {
     </div>
   )
 
-  // ── LOADING ──
   if (loading) return (
     <div style={{
       minHeight: '100vh', background: 'var(--cream)',
@@ -353,21 +370,17 @@ export default function CataloguePage() {
         <div className="bh-inner">
           <div className="bh-left">
             <div className="bh-logo">
-                {profile.logo_url
-                    ? <img src={profile.logo_url} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '12px', padding: '6px' }} />
-                    : <span style={{ fontSize: '28px' }}>✦</span>
-                }
+              {profile.logo_url
+                ? <img src={profile.logo_url} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '12px', padding: '6px' }} />
+                : <span style={{ fontSize: '28px' }}>✦</span>
+              }
             </div>
             <div>
               <div className="bh-name">{profile.business_name}</div>
               <div className="bh-meta">
                 {profile.location && <span>📍 {profile.location}</span>}
-                {profile.location && profile.established_year && (
-                  <div className="bh-divider" />
-                )}
-                {profile.established_year && (
-                  <span>Est. {profile.established_year}</span>
-                )}
+                {profile.location && profile.established_year && <div className="bh-divider" />}
+                {profile.established_year && <span>Est. {profile.established_year}</span>}
                 <div className="bh-divider" />
                 <span>{products.length} Products</span>
               </div>
@@ -381,10 +394,7 @@ export default function CataloguePage() {
             </div>
           </div>
           <div className="bh-right">
-            <button
-              className="custom-wa-btn"
-              onClick={e => openEnquiry(null, e)}
-            >
+            <button className="custom-wa-btn" onClick={e => openEnquiry(null, e)}>
               {WA_ICON}
               Enquire on WhatsApp
             </button>
@@ -399,22 +409,26 @@ export default function CataloguePage() {
             <button
               key={cat}
               className={`cpill ${activeCategory === cat ? 'active' : ''}`}
-              onClick={() => 
-                {
-                  setActiveCategory(cat)
-                  if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
-                  if (cat === 'All' || cat === 'all') return
-                  lastCategoryRef.current = cat
-                  categoryTimerRef.current = setTimeout(() => {
+              onClick={() => {
+                setActiveCategory(cat)
+                if (categoryTimerRef.current) clearTimeout(categoryTimerRef.current)
+                if (cat === 'all') return
+                lastCategoryRef.current = cat
+                // ── Once per category per session ──
+                categoryTimerRef.current = setTimeout(() => {
+                  const catKey = `cat_alerted_${cat}`
+                  if (!sessionStorage.getItem(catKey)) {
+                    sessionStorage.setItem(catKey, '1')
                     supabase.from('alerts').insert({
                       user_id: profile.user_id,
                       type: 'hot',
                       title: `👀 Buyer browsing ${cat} category`,
                       subtitle: `A buyer has been exploring your ${cat} collection for over 2 minutes — high interest`,
                     })
-                  }, 120000)
-                }}
-              >
+                  }
+                }, 120000)
+              }}
+            >
               {cat === 'all' ? 'All Collections' : cat}
             </button>
           ))}
@@ -434,10 +448,7 @@ export default function CataloguePage() {
           {products.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 24px' }}>
               <div style={{ fontSize: '48px', marginBottom: '12px' }}>📦</div>
-              <div style={{
-                fontFamily: "'Cormorant Garamond',serif",
-                fontSize: '26px', color: 'var(--navy)', marginBottom: '8px'
-              }}>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '26px', color: 'var(--navy)', marginBottom: '8px' }}>
                 No products yet
               </div>
               <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
@@ -467,15 +478,9 @@ export default function CataloguePage() {
                           </div>
                         )}
                         <div className="pc-badge-row">
-                          {product.status === 'hot' && (
-                            <span className="pc-badge pcb-hot">Hot</span>
-                          )}
-                          {product.status === 'new' && (
-                            <span className="pc-badge pcb-new">New</span>
-                          )}
-                          {product.stock === 0 && (
-                            <span className="pc-badge pcb-oos">Out of Stock</span>
-                          )}
+                          {product.status === 'hot' && <span className="pc-badge pcb-hot">Hot</span>}
+                          {product.status === 'new' && <span className="pc-badge pcb-new">New</span>}
+                          {product.stock === 0 && <span className="pc-badge pcb-oos">Out of Stock</span>}
                         </div>
                         {product.stock > 0 && (
                           <button
@@ -486,7 +491,6 @@ export default function CataloguePage() {
                           </button>
                         )}
                       </div>
-
                       <div className="pc-body">
                         <div className="pc-category">{product.category}</div>
                         <div className="pc-name">{product.name}</div>
@@ -498,20 +502,13 @@ export default function CataloguePage() {
                           </div>
                         )}
                         <div className="pc-foot">
-                          <div className="pc-moq">
-                            MOQ: <strong>{product.moq || 'TBD'}</strong>
-                          </div>
-                          <div style={{
-                            fontSize: '13px', fontWeight: 700, color: 'var(--gold)'
-                          }}>
+                          <div className="pc-moq">MOQ: <strong>{product.moq || 'TBD'}</strong></div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)' }}>
                             {product.price_range || 'Price on request'}
                           </div>
                         </div>
                         {product.stock === 0 && (
-                          <button
-                            className="pc-oos-wa"
-                            onClick={e => openEnquiry(product, e)}
-                          >
+                          <button className="pc-oos-wa" onClick={e => openEnquiry(product, e)}>
                             💬 Notify me when available
                           </button>
                         )}
@@ -527,16 +524,10 @@ export default function CataloguePage() {
             textAlign: 'center', padding: '32px 0 48px',
             borderTop: '1px solid #e0d8c8', marginTop: '24px'
           }}>
-            <div style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: '15px', color: 'var(--muted)'
-            }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '15px', color: 'var(--muted)' }}>
               Powered by ✦ Exportly
             </div>
-            <div style={{
-              fontSize: '12px', color: 'var(--muted)',
-              marginTop: '4px', opacity: 0.6
-            }}>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px', opacity: 0.6 }}>
               Smart Catalogues for Indian Exporters
             </div>
           </div>
@@ -544,96 +535,92 @@ export default function CataloguePage() {
 
         {/* ── DETAIL PANEL ── */}
         <div className={`buyer-right-panel ${panelOpen ? 'open' : ''}`}>
-        {selectedProduct && (
+          {selectedProduct && (
             <>
-            <div className="dp-scroll">
+              <div className="dp-scroll">
                 <div className="dp-img-box" style={{ height: '260px' }}>
-                {selectedProduct.image_url ? (
+                  {selectedProduct.image_url ? (
                     <img src={selectedProduct.image_url} alt={selectedProduct.name} />
-                ) : (
+                  ) : (
                     <div className="dp-emoji">{selectedProduct.emoji}</div>
-                )}
-                {/* ✅ CLOSE BUTTON INSIDE IMAGE BOX — overlays top-right corner */}
-                <button className="dp-close" onClick={closePanel}>✕</button>
+                  )}
+                  <button className="dp-close" onClick={closePanel}>✕</button>
                 </div>
                 <div className="dp-content">
-                <div className="dp-cat-label">{selectedProduct.category}</div>
-                <div className="dp-name">{selectedProduct.name}</div>
-                <div className="dp-divider" />
-                {selectedProduct.description && (
+                  <div className="dp-cat-label">{selectedProduct.category}</div>
+                  <div className="dp-name">{selectedProduct.name}</div>
+                  <div className="dp-divider" />
+                  {selectedProduct.description && (
                     <div className="dp-desc">{selectedProduct.description}</div>
-                )}
-                <div className="dp-meta-row">
+                  )}
+                  <div className="dp-meta-row">
                     {selectedProduct.moq && (
-                    <div className="dp-meta-item">
+                      <div className="dp-meta-item">
                         <div className="dp-meta-label">Min. Order</div>
                         <div className="dp-meta-val">{selectedProduct.moq}</div>
-                    </div>
+                      </div>
                     )}
                     {selectedProduct.price_range && (
-                    <div className="dp-meta-item">
+                      <div className="dp-meta-item">
                         <div className="dp-meta-label">Price Range</div>
                         <div className="dp-meta-val" style={{ color: 'var(--gold)' }}>
-                        {selectedProduct.price_range}
+                          {selectedProduct.price_range}
                         </div>
-                    </div>
+                      </div>
                     )}
                     <div className="dp-meta-item">
-                    <div className="dp-meta-label">Availability</div>
-                    <div className="dp-meta-val" style={{
+                      <div className="dp-meta-label">Availability</div>
+                      <div className="dp-meta-val" style={{
                         color: selectedProduct.stock > 0 ? 'var(--green)' : 'var(--red)'
-                    }}>
+                      }}>
                         {selectedProduct.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                    </div>
+                      </div>
                     </div>
                     <div className="dp-meta-item">
-                    <div className="dp-meta-label">Views</div>
-                    <div className="dp-meta-val">{selectedProduct.views + 1}</div>
+                      <div className="dp-meta-label">Views</div>
+                      <div className="dp-meta-val">{(selectedProduct.views || 0) + 1}</div>
                     </div>
+                  </div>
                 </div>
-                </div>
-            </div>
-            <div className="dp-actions">
+              </div>
+              <div className="dp-actions">
                 <button
-                className="wa-quot-btn"
-                onClick={() => {
-                        const number = profile.whatsapp_number.replace(/[^0-9]/g, '')
-                        const msg = encodeURIComponent(
-                          `Hello! I'm interested in *${selectedProduct.name}* from your catalogue.\n\nCould you share pricing, MOQ and availability details?`
-                        )
-                        window.open(`https://wa.me/${number}?text=${msg}`, '_blank')
-
-                        // save lead
-                        supabase.from('leads').insert({
-                          user_id: profile.user_id,
-                          buyer_name: null,
-                          buyer_whatsapp: null,
-                          products_interested: [selectedProduct.name],
-                          stage: 'new',
-                          note: 'Enquired from product detail panel',
-                        })
-
-                        supabase.from('alerts').insert({
-                          user_id: profile.user_id,
-                          type: 'lead',
-                          title: `New WhatsApp enquiry — ${selectedProduct.name}`,
-                          subtitle: 'Buyer tapped Ask for Quotation from product detail panel',
-                          product_id: selectedProduct.id,
-                        })
+                  className="wa-quot-btn"
+                  onClick={() => {
+                    const number = profile.whatsapp_number.replace(/[^0-9]/g, '')
+                    const msg = encodeURIComponent(
+                      `Hello! I'm interested in *${selectedProduct.name}* from your catalogue.\n\nCould you share pricing, MOQ and availability details?`
+                    )
+                    window.open(`https://wa.me/${number}?text=${msg}`, '_blank')
+                    supabase.from('leads').insert({
+                      user_id: profile.user_id,
+                      buyer_name: null,
+                      buyer_whatsapp: null,
+                      products_interested: [selectedProduct.name],
+                      stage: 'new',
+                      note: 'Enquired from product detail panel',
+                    })
+                    supabase.from('alerts').insert({
+                      user_id: profile.user_id,
+                      type: 'lead',
+                      title: `New WhatsApp enquiry — ${selectedProduct.name}`,
+                      subtitle: 'Buyer tapped Ask for Quotation from product detail panel',
+                      product_id: selectedProduct.id,
+                    })
                   }}
                 >
-                {WA_ICON}
-                Ask for Quotation via WhatsApp
+                  {WA_ICON}
+                  Ask for Quotation via WhatsApp
                 </button>
                 <button
-                className={`wl-add-btn ${isWishlisted(selectedProduct.id) ? 'in-wl' : ''}`}
-                onClick={e => toggleWishlist(selectedProduct, e)}
+                  className={`wl-add-btn ${isWishlisted(selectedProduct.id) ? 'in-wl' : ''}`}
+                  onClick={e => toggleWishlist(selectedProduct, e)}
                 >
-                {isWishlisted(selectedProduct.id) ? '❤️ In Wishlist' : '🤍 Add to Wishlist'}
+                  {isWishlisted(selectedProduct.id) ? '❤️ In Wishlist' : '🤍 Add to Wishlist'}
                 </button>
-            </div>
+              </div>
             </>
-        )}
+          )}
         </div>
       </div>
 
@@ -641,11 +628,7 @@ export default function CataloguePage() {
       <div className={`wl-sidebar ${showWishlist ? 'open' : ''}`}>
         <div className="wl-hd">
           <div className="wl-hd-title">My Wishlist</div>
-          <button
-            className="dp-close"
-            style={{ position: 'static' }}
-            onClick={() => setShowWishlist(false)}
-          >✕</button>
+          <button className="dp-close" style={{ position: 'static' }} onClick={() => setShowWishlist(false)}>✕</button>
         </div>
         <div className="wl-items-wrap">
           {wishlist.length === 0 ? (
@@ -657,32 +640,23 @@ export default function CataloguePage() {
             wishlist.map(p => (
               <div key={p.id} className="wl-item">
                 <div className="wl-img">
-                  {p.image_url
-                    ? <img src={p.image_url} alt={p.name} />
-                    : p.emoji}
+                  {p.image_url ? <img src={p.image_url} alt={p.name} /> : p.emoji}
                 </div>
                 <div>
                   <div className="wl-iname">{p.name}</div>
                   <div className="wl-icat">{p.category}</div>
                 </div>
-                <button className="wl-rm" onClick={() => toggleWishlist(p)}>✕</button>
+                <button className="wl-rm" onClick={e => toggleWishlist(p, e)}>✕</button>
               </div>
             ))
           )}
         </div>
         <div className="wl-foot">
-          <button
-            className="wa-quot-btn"
-            onClick={whatsappWishlist}
-            disabled={wishlist.length === 0}
-          >
+          <button className="wa-quot-btn" onClick={whatsappWishlist} disabled={wishlist.length === 0}>
             {WA_ICON}
             Ask for Quotation via WhatsApp
           </button>
-          <div style={{
-            fontSize: '11px', color: 'var(--muted)',
-            textAlign: 'center', marginTop: '8px'
-          }}>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', marginTop: '8px' }}>
             Pre-written message with your selected products
           </div>
         </div>
@@ -709,26 +683,18 @@ export default function CataloguePage() {
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{
-              fontFamily: "'Cormorant Garamond',serif",
-              fontSize: '24px', color: 'var(--navy)', marginBottom: '6px'
-            }}>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '24px', color: 'var(--navy)', marginBottom: '6px' }}>
               💬 Custom Enquiry
             </div>
-            <div style={{
-              fontSize: '13px', color: 'var(--muted)',
-              marginBottom: '20px', lineHeight: 1.6,
-            }}>
+            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '20px', lineHeight: 1.6 }}>
               {enquiryProduct
                 ? `Enquiring about: ${enquiryProduct.name}`
                 : "Tell us what you need and we'll check if we can fulfil it."}
             </div>
 
-            {/* ERROR */}
             {enquiryError && (
               <div style={{
-                background: 'var(--red-bg)',
-                border: '1px solid rgba(217,79,79,0.3)',
+                background: 'var(--red-bg)', border: '1px solid rgba(217,79,79,0.3)',
                 borderRadius: '8px', padding: '10px 14px',
                 fontSize: '13px', color: 'var(--red)', marginBottom: '16px',
               }}>
@@ -736,7 +702,6 @@ export default function CataloguePage() {
               </div>
             )}
 
-            {/* WHAT */}
             <div className="form-group">
               <label className="form-label">What are you looking for? *</label>
               <input
@@ -747,7 +712,6 @@ export default function CataloguePage() {
               />
             </div>
 
-            {/* ISSUES */}
             <div className="form-group">
               <label className="form-label">What's the issue? (optional)</label>
               <div className="cr-chips">
@@ -761,32 +725,24 @@ export default function CataloguePage() {
                   </div>
                 ))}
               </div>
-
-              {/* OTHER FIELD — only when Other selected */}
               {selectedIssues.includes('Other') && (
                 <div style={{ marginTop: '10px' }}>
                   <input
                     className="form-input"
                     placeholder="Please describe your issue *"
                     value={enquiryForm.otherIssue}
-                    onChange={e => setEnquiryForm(f => ({
-                      ...f, otherIssue: e.target.value
-                    }))}
+                    onChange={e => setEnquiryForm(f => ({ ...f, otherIssue: e.target.value }))}
                     style={{
-                      borderColor: enquiryError && !enquiryForm.otherIssue.trim()
-                        ? 'var(--red)' : undefined
+                      borderColor: enquiryError && !enquiryForm.otherIssue.trim() ? 'var(--red)' : undefined
                     }}
                   />
-                  <div style={{
-                    fontSize: '11.5px', color: 'var(--muted)', marginTop: '4px'
-                  }}>
+                  <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '4px' }}>
                     Required — please describe your issue
                   </div>
                 </div>
               )}
             </div>
 
-            {/* NAME */}
             <div className="form-group">
               <label className="form-label">Your Name *</label>
               <input
@@ -797,7 +753,6 @@ export default function CataloguePage() {
               />
             </div>
 
-            {/* PHONE */}
             <div className="form-group">
               <label className="form-label">Your WhatsApp Number *</label>
               <input
@@ -810,17 +765,10 @@ export default function CataloguePage() {
             </div>
 
             <div className="modal-actions">
-              <button
-                className="btn btn-outline"
-                onClick={() => setShowEnquiry(false)}
-              >
+              <button className="btn btn-outline" onClick={() => setShowEnquiry(false)}>
                 Cancel
               </button>
-              <button
-                className="wa-quot-btn"
-                style={{ flex: 2, padding: '11px 18px' }}
-                onClick={sendEnquiry}
-              >
+              <button className="wa-quot-btn" style={{ flex: 2, padding: '11px 18px' }} onClick={sendEnquiry}>
                 {WA_ICON}
                 Send via WhatsApp
               </button>
