@@ -61,24 +61,45 @@ export default function AdminUsers() {
   }
 
   async function activateTrial(u) {
-    setSaving(true)
-    if (u.sub) {
-      await supabase
-        .from('subscriptions')
-        .update({ trial_started_at: new Date().toISOString() })
-        .eq('id', u.sub.id)
-    } else {
-      await supabase.from('subscriptions').insert({
+  setSaving(true)
+
+  if (u.sub) {
+    // subscription row exists — just update trial_started_at
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ 
+        trial_started_at: new Date().toISOString(),
+        status: 'active',
+      })
+      .eq('id', u.sub.id)
+
+    if (error) {
+      showToast('❌ Failed — ' + error.message)
+      setSaving(false)
+      return
+    }
+  } else {
+    // no subscription row yet — create one
+    const { error } = await supabase
+      .from('subscriptions')
+      .insert({
         user_id: u.user_id,
         plan: 'free',
         status: 'active',
         trial_started_at: new Date().toISOString(),
       })
+
+    if (error) {
+      showToast('❌ Failed — ' + error.message)
+      setSaving(false)
+      return
     }
-    showToast(`✅ Trial activated for ${u.business_name}`)
-    setSaving(false)
-    fetchUsers()
   }
+
+  showToast(`✅ Trial activated for ${u.business_name}`)
+  setSaving(false)
+  fetchUsers()
+}
 
   async function savePlanChange() {
     if (!actionModal) return
