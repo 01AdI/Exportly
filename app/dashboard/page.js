@@ -82,7 +82,6 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  // Real-time alerts subscription
   function subscribeToAlerts() {
     const channel = supabase
       .channel('dashboard-alerts')
@@ -93,6 +92,7 @@ export default function DashboardPage() {
       }, (payload) => {
         setAlerts(prev => [payload.new, ...prev.slice(0, 3)])
         showToast('🔔 New alert received')
+        fetchAll()   // ← add this line — refreshes KPI cards
       })
       .subscribe()
 

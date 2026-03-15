@@ -62,6 +62,7 @@ export default function DashboardLayout({ children }) {
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('is_read', false)
+      .eq('is_deleted', false)   // ← add this line
 
     setAlertCount(count || 0)
   }
