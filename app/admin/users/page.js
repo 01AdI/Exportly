@@ -141,15 +141,14 @@ export default function AdminUsers() {
       <div style={{
         background: '#1e293b',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
-        padding: '0 32px',
-        height: '58px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        padding: '0 32px', height: '58px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={() => router.push('/admin/dashboard')}
+            onMouseEnter={e => e.currentTarget.style.color = '#e0c068'}
+            onMouseLeave={e => e.currentTarget.style.color = '#C9A84C'}
             style={{
               background: 'none', border: 'none',
               color: '#C9A84C', fontSize: '13px',
@@ -185,8 +184,8 @@ export default function AdminUsers() {
               padding: '9px 14px',
               background: '#1e293b',
               border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '9px',
-              fontSize: '13px', color: '#fff', outline: 'none',
+              borderRadius: '9px', fontSize: '13px',
+              color: '#fff', outline: 'none',
               fontFamily: "'DM Sans', sans-serif",
               minWidth: '240px',
             }}
@@ -196,14 +195,20 @@ export default function AdminUsers() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
+                onMouseEnter={e => {
+                  if (filter !== f) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                }}
+                onMouseLeave={e => {
+                  if (filter !== f) e.currentTarget.style.background = 'transparent'
+                }}
                 style={{
-                  padding: '7px 14px',
-                  borderRadius: '99px',
+                  padding: '7px 14px', borderRadius: '99px',
                   border: `1px solid ${filter === f ? '#C9A84C' : 'rgba(255,255,255,0.1)'}`,
                   background: filter === f ? 'rgba(201,168,76,0.15)' : 'transparent',
                   color: filter === f ? '#C9A84C' : 'rgba(255,255,255,0.4)',
                   fontSize: '12.5px', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif",
+                  transition: 'background .15s',
                 }}
               >
                 {f}
@@ -220,8 +225,7 @@ export default function AdminUsers() {
         <div style={{
           background: '#1e293b',
           border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: '16px',
-          overflow: 'hidden',
+          borderRadius: '16px', overflow: 'hidden',
         }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -256,8 +260,12 @@ export default function AdminUsers() {
                   const isPending = status.tag === 'Pending'
 
                   return (
-                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-
+                    <tr
+                      key={u.id}
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>
                           {u.business_name}
@@ -270,6 +278,8 @@ export default function AdminUsers() {
                       <td style={{ padding: '14px 20px' }}>
                         <span
                           onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
+                          onMouseEnter={e => e.currentTarget.style.color = '#e0c068'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#C9A84C'}
                           style={{
                             fontSize: '12px', color: '#C9A84C',
                             cursor: 'pointer', textDecoration: 'underline',
@@ -319,6 +329,8 @@ export default function AdminUsers() {
                             <button
                               onClick={() => activateTrial(u)}
                               disabled={saving}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(96,165,250,0.25)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'rgba(96,165,250,0.15)'}
                               style={{
                                 background: 'rgba(96,165,250,0.15)',
                                 border: '1px solid rgba(96,165,250,0.3)',
@@ -333,6 +345,8 @@ export default function AdminUsers() {
                           )}
                           <button
                             onClick={() => openActionModal(u)}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.22)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.12)'}
                             style={{
                               background: 'rgba(201,168,76,0.12)',
                               border: '1px solid rgba(201,168,76,0.25)',
@@ -346,6 +360,8 @@ export default function AdminUsers() {
                           </button>
                           <button
                             onClick={() => window.open(`/catalogue/${u.slug}`, '_blank')}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
                             style={{
                               background: 'rgba(255,255,255,0.06)',
                               border: '1px solid rgba(255,255,255,0.1)',
@@ -415,6 +431,14 @@ export default function AdminUsers() {
                 <div
                   key={p.value}
                   onClick={() => setNewPlan(p.value)}
+                  onMouseEnter={e => {
+                    if (newPlan !== p.value)
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                  }}
+                  onMouseLeave={e => {
+                    if (newPlan !== p.value)
+                      e.currentTarget.style.background = 'transparent'
+                  }}
                   style={{
                     display: 'flex', justifyContent: 'space-between',
                     alignItems: 'center', padding: '12px 14px',
@@ -422,9 +446,13 @@ export default function AdminUsers() {
                     border: `1.5px solid ${newPlan === p.value ? '#C9A84C' : 'rgba(255,255,255,0.08)'}`,
                     background: newPlan === p.value ? 'rgba(201,168,76,0.1)' : 'transparent',
                     cursor: 'pointer', marginBottom: '8px',
+                    transition: 'background .15s',
                   }}
                 >
-                  <span style={{ fontSize: '13px', color: newPlan === p.value ? '#C9A84C' : 'rgba(255,255,255,0.7)' }}>
+                  <span style={{
+                    fontSize: '13px',
+                    color: newPlan === p.value ? '#C9A84C' : 'rgba(255,255,255,0.7)',
+                  }}>
                     {p.label}
                   </span>
                   {p.price && (
@@ -439,6 +467,8 @@ export default function AdminUsers() {
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 onClick={() => setActionModal(null)}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 style={{
                   flex: 1, padding: '11px', borderRadius: '10px',
                   border: '1px solid rgba(255,255,255,0.1)',
@@ -452,6 +482,8 @@ export default function AdminUsers() {
               <button
                 onClick={savePlanChange}
                 disabled={saving}
+                onMouseEnter={e => { if (!saving) e.currentTarget.style.opacity = '0.88' }}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                 style={{
                   flex: 2, padding: '11px', borderRadius: '10px',
                   border: 'none', background: '#C9A84C',

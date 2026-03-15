@@ -111,30 +111,28 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button
             onClick={() => router.push('/admin/users')}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.25)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.15)'}
             style={{
               background: 'rgba(201,168,76,0.15)',
               border: '1px solid rgba(201,168,76,0.3)',
-              borderRadius: '8px',
-              padding: '7px 16px',
-              fontSize: '13px',
-              color: '#C9A84C',
-              cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
+              borderRadius: '8px', padding: '7px 16px',
+              fontSize: '13px', color: '#C9A84C',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
             }}
           >
             👥 All Users
           </button>
           <button
             onClick={handleLogout}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
             style={{
               background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '8px',
-              padding: '7px 16px',
-              fontSize: '13px',
-              color: 'rgba(255,255,255,0.5)',
-              cursor: 'pointer',
-              fontFamily: "'DM Sans', sans-serif",
+              borderRadius: '8px', padding: '7px 16px',
+              fontSize: '13px', color: 'rgba(255,255,255,0.5)',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
             }}
           >
             Sign Out
@@ -148,9 +146,7 @@ export default function AdminDashboard() {
         <div style={{ marginBottom: '28px' }}>
           <div style={{
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: '28px',
-            color: '#fff',
-            marginBottom: '4px',
+            fontSize: '28px', color: '#fff', marginBottom: '4px',
           }}>
             Dashboard Overview
           </div>
@@ -177,11 +173,8 @@ export default function AdminDashboard() {
               <div style={{ fontSize: '24px', marginBottom: '10px' }}>{c.icon}</div>
               <div style={{
                 fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '28px',
-                color: '#fff',
-                fontWeight: 700,
-                lineHeight: 1,
-                marginBottom: '4px',
+                fontSize: '28px', color: '#fff',
+                fontWeight: 700, lineHeight: 1, marginBottom: '4px',
               }}>
                 {c.value}
               </div>
@@ -202,22 +195,19 @@ export default function AdminDashboard() {
           <div style={{
             padding: '18px 24px',
             borderBottom: '1px solid rgba(255,255,255,0.06)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#fff' }}>
               🕐 Recent Signups
             </div>
             <button
               onClick={() => router.push('/admin/users')}
+              onMouseEnter={e => e.currentTarget.style.color = '#e0c068'}
+              onMouseLeave={e => e.currentTarget.style.color = '#C9A84C'}
               style={{
-                background: 'none',
-                border: 'none',
-                color: '#C9A84C',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif",
+                background: 'none', border: 'none',
+                color: '#C9A84C', fontSize: '13px',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
               }}
             >
               View all →
@@ -229,13 +219,10 @@ export default function AdminDashboard() {
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {['Business', 'Catalogue', 'Plan', 'Status', 'Joined'].map(h => (
                     <th key={h} style={{
-                      padding: '11px 24px',
-                      textAlign: 'left',
-                      fontSize: '11px',
-                      fontWeight: 700,
+                      padding: '11px 24px', textAlign: 'left',
+                      fontSize: '11px', fontWeight: 700,
                       color: 'rgba(255,255,255,0.3)',
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
+                      letterSpacing: '1px', textTransform: 'uppercase',
                     }}>
                       {h}
                     </th>
@@ -246,10 +233,8 @@ export default function AdminDashboard() {
                 {recentUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{
-                      padding: '48px',
-                      textAlign: 'center',
-                      color: 'rgba(255,255,255,0.2)',
-                      fontSize: '13px',
+                      padding: '48px', textAlign: 'center',
+                      color: 'rgba(255,255,255,0.2)', fontSize: '13px',
                     }}>
                       No users yet
                     </td>
@@ -273,7 +258,12 @@ export default function AdminDashboard() {
                   }
 
                   return (
-                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <tr
+                      key={u.id}
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
                       <td style={{ padding: '14px 24px', fontSize: '13px', color: '#fff', fontWeight: 600 }}>
                         {u.business_name}
                       </td>
@@ -283,10 +273,8 @@ export default function AdminDashboard() {
                       <td style={{ padding: '14px 24px' }}>
                         <span style={{
                           background: 'rgba(255,255,255,0.06)',
-                          borderRadius: '6px',
-                          padding: '3px 10px',
-                          fontSize: '11.5px',
-                          color: 'rgba(255,255,255,0.6)',
+                          borderRadius: '6px', padding: '3px 10px',
+                          fontSize: '11.5px', color: 'rgba(255,255,255,0.6)',
                           textTransform: 'capitalize',
                         }}>
                           {plan}
@@ -295,11 +283,8 @@ export default function AdminDashboard() {
                       <td style={{ padding: '14px 24px' }}>
                         <span style={{
                           background: `${statusColor}18`,
-                          color: statusColor,
-                          borderRadius: '99px',
-                          padding: '3px 10px',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
+                          color: statusColor, borderRadius: '99px',
+                          padding: '3px 10px', fontSize: '11.5px', fontWeight: 600,
                         }}>
                           {statusLabel}
                         </span>
